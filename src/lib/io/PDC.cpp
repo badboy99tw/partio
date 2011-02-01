@@ -78,7 +78,7 @@ ParticlesDataMutable* readPDC(const char* filename, const bool headersOnly){
             for(int partIndex = 0; partIndex < simple->numParticles(); partIndex++){
                 for(int dim = 0; dim < attr.count; dim++){
                     read<BIGEND>(*input, tmp[dim]);
-                    simple->dataWrite<float>(attr, partIndex)[dim] = tmp[dim];
+                    simple->dataWrite<float>(attr, partIndex)[dim] = (float)tmp[dim];
                 }
             }
         }

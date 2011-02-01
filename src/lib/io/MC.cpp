@@ -6,63 +6,105 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include <cassert>
+#include <string.h>
 #include <memory>
 
 namespace Partio{
 
 using namespace std;
-// TODO: convert this to use iterators like the rest of the readers/writers
 
-std::string GetString(std::istream& input, unsigned int size){
-    char* tmp = new char [size];
-    input.read(tmp, size);
-    std::string result(tmp);
-
-    // fix read tag error (ex: DBLA --> DBLAi, why !!)
-    if(result.size() > size){
-        result.resize(size);
-    }
-
-    delete [] tmp;
-    return result;
-}
+static const int MC_MAGIC = ((((('F'<<8)|'O')<<8)|'R')<<8)|'4';
 
 typedef struct{
-    std::string name;
-    std::string type;
+    int magic;
+    int headerSize;
+    int blockSize;
+} MC_HEADER;
+
+typedef struct{
+    string name;
+    string type;
     unsigned int numParticles;
-    unsigned int blocksize;
-} Attribute_Header;
+    unsigned int blockSize;
+} ATTR_HEADER;
 
+bool readStr(istream& input, string& target, unsigned int size){
+    char* tmp = new char [size];
+    input.read(tmp, size);
+    target = string(tmp, tmp+size);
+    delete [] tmp;
+    return true;
+}
 
-bool ReadAttrHeader(std::istream& input, Attribute_Header& attribute){
+bool readMcHeader(istream& input, MC_HEADER& mc){
+    read<BIGEND>(input, mc.magic);
+
+    int headerSize;
+    read<BIGEND>(input, headerSize);
+    input.seekg((int)input.tellg() + headerSize);
+
     char tag[4];
-    input.read(tag, 4); // CHNM
+    input.read(tag, 4); // FOR4
+    read<BIGEND>(input, mc.blockSize);
+    input.read(tag, 4); // MYCH
 
+    mc.headerSize = 4 + 4 + headerSize + 4 + 4 + 4; // magic + sizeof(int) + blockSize + FOR4 + blocksize + MYCH
+    mc.blockSize = mc.blockSize - 4; // minus 4 bytes for MYCH
+
+    return true;
+}
+
+bool readAttrHeader(istream& input, ATTR_HEADER& attr){
+    char tag[4];
+    input.read(tag, 4); // tag CHNM
+
+    // read attribute name
     int chnmSize;
     read<BIGEND>(input, chnmSize);
     if(chnmSize%4 > 0){
         chnmSize = chnmSize - chnmSize%4 + 4;
     }
-    attribute.name = GetString(input, chnmSize);
-    attribute.name = attribute.name.substr(attribute.name.find_first_of("_")+1);
+    readStr(input, attr.name, chnmSize);
+    attr.name = attr.name.substr(attr.name.find_first_of("_")+1);
 
-    input.read(tag, 4); // SIZE
+    input.read(tag, 4); // tag SIZE
     int dummy;
     read<BIGEND>(input, dummy); // 4
-
-    read<BIGEND>(input, attribute.numParticles);
-
-    attribute.type = GetString(input, 4);
-
-    read<BIGEND>(input, attribute.blocksize);
+    read<BIGEND>(input, attr.numParticles);
+    readStr(input, attr.type, 4);
+    read<BIGEND>(input, attr.blockSize);
 
     return true;
 }
 
-static const int MC_MAGIC = ((((('F'<<8)|'O')<<8)|'R')<<8)|'4';
-static const int HEADER_SIZE = 56;
+// maybe replaced by reading xml file.
+bool mcInfo(const char* filename, ParticlesDataMutable* simple){
+    auto_ptr<istream> input(Gzip_In(filename,ios::in|ios::binary));
+    MC_HEADER header;
+    readMcHeader(*input, header);
+    int numParticles = 0;
+    while((int)input->tellg()-header.headerSize < header.blockSize){
+        ATTR_HEADER attrHeader;
+        readAttrHeader(*input, attrHeader);
+        input->seekg((int)input->tellg() + attrHeader.blockSize);
+
+        if(attrHeader.name == string("id")){
+            numParticles = attrHeader.numParticles;
+        }
+        if(attrHeader.name == string("count")){
+            continue;
+        }
+        // add attribute
+        if(attrHeader.type == std::string("FVCA")){
+            simple->addAttribute(attrHeader.name.c_str(), VECTOR, 3);
+        }
+        else if(attrHeader.type == std::string("DBLA")){
+            simple->addAttribute(attrHeader.name.c_str(), FLOAT, 1);
+        }
+    }
+    simple->addParticles(numParticles);
+    return true;
+}
 
 ParticlesDataMutable* readMC(const char* filename, const bool headersOnly){
 
@@ -72,123 +114,47 @@ ParticlesDataMutable* readMC(const char* filename, const bool headersOnly){
         return 0;
     }
 
-    int magic;
-    read<BIGEND>(*input, magic);
-    if(MC_MAGIC != magic){
-        std::cerr << "Partio: Magic number '" << magic << "' of '" << filename << "' doesn't match mc magic '" << MC_MAGIC << "'" << std::endl;
+    MC_HEADER header;
+    readMcHeader(*input, header);
+    if(MC_MAGIC != header.magic){
+        std::cerr << "Partio: Magic number '" << header.magic << "' of '" << filename << "' doesn't match mc magic '" << MC_MAGIC << "'" << std::endl;
         return 0;
     }
-
-    int headerSize;
-    read<BIGEND>(*input, headerSize);
-    input->seekg((int)input->tellg() + headerSize);
-
-    /*int dummy; // tmp1, tmp2, num1, tmp3, tmp4, num2, num3, tmp5, num4, num5, blockTag
-    for(int i = 0; i < 10; i++){ 
-        read<BIGEND>(*input, dummy);
-        //std::cout << dummy << std::endl;
-    }*/
-
-    char tag[4];
-    input->read(tag, 4); // FOR4
-
-    int blockSize;
-    read<BIGEND>(*input, blockSize);
-
-    // Allocate a simple particle with the appropriate number of points
-    ParticlesDataMutable* simple=0;
-    if(headersOnly){
-        simple = new ParticleHeaders;
-    }
-    else{ 
-        simple = create();
-    }
-    int numParticles = 0;
-    input->read(tag, 4); // MYCH
-
-    while(((int)input->tellg()-HEADER_SIZE) < blockSize){
-        Attribute_Header attrHeader;
-        ReadAttrHeader(*input, attrHeader);
-
-        if(attrHeader.name == std::string("id")){
-            numParticles = attrHeader.numParticles;
-        }
-
-        if(attrHeader.blocksize/sizeof(double) == 1){ // for who ?
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
-            continue;
-        }
-
-        if(attrHeader.type == std::string("FVCA")){
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
-            simple->addAttribute(attrHeader.name.c_str(), VECTOR, 3);
-        }
-        else if(attrHeader.type == std::string("DBLA")){
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
-            simple->addAttribute(attrHeader.name.c_str(), FLOAT, 1);
-        }
-        else{
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
-            std::cerr << "Partio: Attribute '" << attrHeader.name << " " << attrHeader.type << "' cannot map type" << std::endl;
-        }
-    }
-    simple->addParticles(numParticles);
     
-    // If all we care about is headers, then return.--
+    ParticlesDataMutable* simple = headersOnly ? new ParticleHeaders: create();
+    mcInfo(filename, simple);
+
     if(headersOnly){
         return simple;
     }
-    input->seekg(HEADER_SIZE);
-    input->read(tag, 4); // MYCH
-    while((int)input->tellg()-HEADER_SIZE < blockSize){
-        Attribute_Header attrHeader;
-        ReadAttrHeader(*input, attrHeader);
+     
+    input->seekg(header.headerSize);
+    while((int)input->tellg()-header.headerSize < header.blockSize){
+        ATTR_HEADER attrHeader;
+        readAttrHeader(*input, attrHeader);
 
-        if(attrHeader.blocksize/sizeof(double) == 1){ // for who ?
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
+        ParticleAttribute attr;
+        if(simple->attributeInfo(attrHeader.name.c_str(), attr) == false){
+            input->seekg((int)input->tellg() + attrHeader.blockSize);
             continue;
         }
 
-        ParticleAttribute attrHandle;
-        if(simple->attributeInfo(attrHeader.name.c_str(), attrHandle) == false){
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
-            continue;
-        }
-
-        Partio::ParticlesDataMutable::iterator it = simple->begin();
-        Partio::ParticleAccessor accessor(attrHandle);
-        it.addAccessor(accessor);
-
-        if(attrHeader.type == std::string("DBLA")){
-            for(int i = 0; i < simple->numParticles(); i++){
-                double tmp;
+        if(attr.type == FLOAT){
+            double tmp;
+            for(int partIndex = 0; partIndex < simple->numParticles(); partIndex++){
                 read<BIGEND>(*input, tmp);
-                float* data = simple->dataWrite<float>(attrHandle, i);
-                data[0] = (float)tmp;
+                simple->dataWrite<float>(attr, partIndex)[0] = (float)tmp;
             }
         }
-        else if(attrHeader.type == std::string("FVCA")){
-            for(Partio::ParticlesDataMutable::iterator end = simple->end(); it != end; ++it){
-                input->read(accessor.raw<char>(it), sizeof(float)*attrHandle.count);
+        else if(attr.type == VECTOR){
+            float tmp[3];
+            for(int partIndex = 0; partIndex < simple->numParticles(); partIndex++){
+                read<BIGEND>(*input, tmp[0], tmp[1], tmp[2]);
+                memcpy(simple->dataWrite<float>(attr, partIndex), tmp, sizeof(float)*attr.count);
             }
-            it = simple->begin();
-            for(Partio::ParticlesDataMutable::iterator end = simple->end(); it != end; ++it){
-                float* data = accessor.raw<float>(it);
-                for(int i = 0; i < attrHandle.count; i++){
-                    BIGEND::swap(data[i]);
-                    //data[k]=buffer[attrOffsets[attrIndex]+k];
-                    //data[i] = endianSwap<float>(data[i]);
-                }
-            }
-            
-
-        }
-        else{
-            std::cout << attrHeader.type << std::endl;
         }
     }
-    return simple;
-    
+    return simple; 
 }
 
-}
+}// end of namespace Partio
