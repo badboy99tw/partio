@@ -10,7 +10,7 @@
 #include <memory>
 
 namespace Partio{
-//#define PartioBIG_ENDIAN
+
 using namespace std;
 // TODO: convert this to use iterators like the rest of the readers/writers
 
@@ -61,33 +61,10 @@ bool ReadAttrHeader(std::istream& input, Attribute_Header& attribute){
     return true;
 }
 
-int CharArrayLen(const char** charArray){
-    int i = 0;
-    if(charArray != false){
-        while(charArray[i] != '\0'){
-            i++;
-        }
-    }
-    return i;
-}
-
-bool IsStringInCharArray(std::string target, const char** list){
-    //std::cout << "Is " << target << " in ";
-    for(int i = 0; i < CharArrayLen(list); i++){
-        //std::cout << std::string(list[i]) << " ";
-        if(target == std::string(list[i])){
-            //std::cout << "? (YES)" << std::endl;
-            return true;
-        }
-    }
-    //std::cout << "? (NO)" << std::endl;
-    return false;
-}
-
 static const int MC_MAGIC = ((((('F'<<8)|'O')<<8)|'R')<<8)|'4';
 static const int HEADER_SIZE = 56;
 
-ParticlesDataMutable* readMC(const char* filename, const bool headersOnly, const char** attributes, const int percentage){
+ParticlesDataMutable* readMC(const char* filename, const bool headersOnly){
 
     std::auto_ptr<std::istream> input(Gzip_In(filename,std::ios::in|std::ios::binary));
     if(!*input){
@@ -141,10 +118,6 @@ ParticlesDataMutable* readMC(const char* filename, const bool headersOnly, const
             input->seekg((int)input->tellg() + attrHeader.blocksize);
             continue;
         }
-        if(attributes && (IsStringInCharArray(attrHeader.name, attributes)==false)){
-            input->seekg((int)input->tellg() + attrHeader.blocksize);
-            continue;
-        }
 
         if(attrHeader.type == std::string("FVCA")){
             input->seekg((int)input->tellg() + attrHeader.blocksize);
@@ -165,7 +138,6 @@ ParticlesDataMutable* readMC(const char* filename, const bool headersOnly, const
     if(headersOnly){
         return simple;
     }
-    //cout << "==============================================================" << endl;
     input->seekg(HEADER_SIZE);
     input->read(tag, 4); // MYCH
     while((int)input->tellg()-HEADER_SIZE < blockSize){
@@ -214,94 +186,9 @@ ParticlesDataMutable* readMC(const char* filename, const bool headersOnly, const
         else{
             std::cout << attrHeader.type << std::endl;
         }
-        /*
-        if(0){
-            std::cout << typeName << std::endl;
-            std::cerr << "Partio: " << filename << " had unknown attribute spec " << typeName << " " << name << std::endl;
-            simple->release();
-            return 0;
-        }*/
-
     }
     return simple;
     
 }
-/*
-bool dgMc::open(string filePath){
-    timeval t1, t2;
-
-    ReadStr(file, 4); // MYCH
-
-    while(((int)file.tellg()-8-40-8) < header.blockSize){
-        ReadStr(file, 4); // CHNM
-
-        int chnmSize = ReadInt(file);
-        if(chnmSize%4 > 0){
-            chnmSize = chnmSize - chnmSize%4 + 4;
-        }
-        string attrname = ReadChar(file, chnmSize);
-        attrname = attrname.substr(attrname.find_first_of("_")+1);
-        //cout << attrname << endl;
-
-        ReadStr(file, 4); // SIZE
-        ReadInt(file);
-
-        int arrayLength = ReadInt(file);
-        string format = ReadStr(file, 4); // DBLA or FVCA
-        int bufferLength = ReadInt(file);
-
-        string DBLA("DBLA");
-        //cout << format << " " << arrayLength << " " << bufferLength << endl;
-        if(format == string("DBLA")){
-            ReadDoubleArray(file, (int)file.tellg(), &_doubleArray[attrname], arrayLength);
-            //file.seekg((int)file.tellg() + bufferLength);
-        }
-        else{ // FVCA
-            ReadVectorArray(file, (int)file.tellg(), &_vectorArray[attrname], arrayLength);
-            if(attrname == string("position")){
-                //ReadVectorArray(file, (int)file.tellg(), &_vectorArray[attrname], arrayLength);
-                //file.seekg((int)file.tellg() + bufferLength);
-            }
-            else{
-
-                //file.seekg((int)file.tellg() + bufferLength);
-            }
-            //return true;
-        }
-
-        if(attrname == string("id")){
-            _numParticles = arrayLength;
-        }
-    }
-    return true;
-}
-
-int main(){
-    cout << "go" << endl;
-
-    timeval t1, t2;
-    double elapsedTime;
-    gettimeofday(&t1, NULL);
-
-    for(int i = 0; i < 1; i++){
-        dgMc mc;
-        mc.open(string("/dept/rdworks/jinkuen/testfile/mc/real_nParticleShape1Frame47.mc"));
-        cout << mc.numParticles() << " ";
-        for(int i = 0; i < mc.count(); i++){
-            cout << mc.list(dgParticle::All)[i] << " ";
-        }
-        mc.clear();
-    }
-    cout << endl;
-
-    gettimeofday(&t2, NULL);
-    elapsedTime = (t2.tv_sec - t1.tv_sec) * 1000.0;      // sec to ms
-    elapsedTime += (t2.tv_usec - t1.tv_usec) / 1000.0;   // us to ms
-    cout << elapsedTime << " ms.\n";
-
-    return 1;
-}
-
-*/
 
 }
