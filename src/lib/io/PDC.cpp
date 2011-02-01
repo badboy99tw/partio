@@ -97,7 +97,6 @@ ParticlesDataMutable* readPDC(const char* filename, const bool headersOnly){
                 }
             }
         }
-        cout << attrName << " " << type << endl;
     }
 
     return simple;
