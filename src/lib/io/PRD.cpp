@@ -12,28 +12,29 @@ namespace Partio{
 
 using namespace std;
 
-static const long BIN_MAGIC = 100;//OxFABADA;
+static const int PDC_MAGIC = (((((' '<<8)|'C')<<8)|'D')<<8)|'P'; // " CDP"
 
 typedef struct{
-    long verificationCode;
-    char fluidName[250];
-    short version;
-    float scaleScene;
-    int fluidType;
-    float elapsedSimulationTime;
-    int frameNumber;
-    int framePerSecond;
-    long numberOfParticles;
-    float radius;
-    float pressure[3];
-    float speed[3];
-    float temperature[3];
-    float emitterPosition[3];
-    float emitterRotation[3];
-    float emitterScale[3];
-} BIN_HEADER;
+    int magic;
+    int version;
+    int bitorder;
+    int tmp1;
+    int tmp2;
+    int numParticles;
+    int numAttrs;
+} PDC_HEADER;
 
-ParticlesDataMutable* readBIN(const char* filename, const bool headersOnly){
+string readAttrName(istream& input){
+    int nameLen = 0;
+    read<BIGEND>(input, nameLen);
+    char* name = new char[nameLen];
+    input.read(name, nameLen);
+    string result(name, name+nameLen);
+    delete [] name;
+    return result;
+}
+
+ParticlesDataMutable* readPRD(const char* filename, const bool headersOnly){
 
     auto_ptr<istream> input(Gzip_In(filename,std::ios::in|std::ios::binary));
     if(!*input){
@@ -41,23 +42,23 @@ ParticlesDataMutable* readBIN(const char* filename, const bool headersOnly){
         return 0;
     }
 
-    BIN_HEADER header;
+    PDC_HEADER header;
     input->read((char*)&header, sizeof(header)); 
-    if(BIN_MAGIC != header.verificationCode){
-        std::cerr << "Partio: Magic number '" << header.verificationCode << "' of '" << filename << "' doesn't match pdc magic '" << BIN_MAGIC << "'" << std::endl;
+    if(PDC_MAGIC != header.magic){
+        std::cerr << "Partio: Magic number '" << header.magic << "' of '" << filename << "' doesn't match pdc magic '" << PDC_MAGIC << "'" << std::endl;
         return 0;
     }
 
-    BIGEND::swap(header.numberOfParticles);
-    //BIGEND::swap(header.numAttrs);
+    BIGEND::swap(header.numParticles);
+    BIGEND::swap(header.numAttrs);
 
     ParticlesDataMutable* simple = headersOnly ? new ParticleHeaders: create();
-/*    simple->addParticles(header.numParticles);
+    simple->addParticles(header.numParticles);
 
     for(int attrIndex = 0; attrIndex < header.numAttrs; attrIndex++){
         // add attribute
         ParticleAttribute attr;
-        string attrName = readName(*input);
+        string attrName = readAttrName(*input);
         int type;
         read<BIGEND>(*input, type);     
         if(type == 3){
@@ -82,13 +83,11 @@ ParticlesDataMutable* readBIN(const char* filename, const bool headersOnly){
             }
         }
     }
-*/
+
     return simple;
 }
 
-bool writeBIN(const char* filename,const ParticlesData& p,const bool compressed){
-    return true;
-    /*
+bool writePRD(const char* filename,const ParticlesData& p,const bool compressed){
     auto_ptr<ostream> output(
         compressed ?
         Gzip_Out(filename,ios::out|ios::binary)
@@ -131,7 +130,7 @@ bool writeBIN(const char* filename,const ParticlesData& p,const bool compressed)
             }
         }
     }
-    return true;*/
+    return true;
 }
 
 }// end of namespace Partio
