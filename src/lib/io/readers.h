@@ -19,14 +19,14 @@ ParticlesDataMutable* readPDA(const char* filename,const bool headersOnly);
 ParticlesDataMutable* readPTC(const char* filename,const bool headersOnly);
 ParticlesDataMutable* readMC(const char* filename,const bool headersOnly);
 ParticlesDataMutable* readPDC(const char* filename,const bool headersOnly);
-ParticlesDataMutable* readPRD(const char* filename,const bool headersOnly);
+ParticlesDataMutable* readPRT(const char* filename,const bool headersOnly);
 bool writeBGEO(const char* filename,const ParticlesData& p,const bool compressed);
 bool writeGEO(const char* filename,const ParticlesData& p,const bool compressed);
 bool writePDB(const char* filename,const ParticlesData& p,const bool compressed);
 bool writePDA(const char* filename,const ParticlesData& p,const bool compressed);
 bool writePTC(const char* filename,const ParticlesData& p,const bool compressed);
 bool writePDC(const char* filename,const ParticlesData& p,const bool compressed);
-bool writePRD(const char* filename,const ParticlesData& p,const bool compressed);
+bool writePRT(const char* filename,const ParticlesData& p,const bool compressed);
 }
 
 #endif

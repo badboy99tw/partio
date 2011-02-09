@@ -34,7 +34,7 @@ string readAttrName(istream& input){
     return result;
 }
 
-ParticlesDataMutable* readPRD(const char* filename, const bool headersOnly){
+ParticlesDataMutable* readPRT(const char* filename, const bool headersOnly){
 
     auto_ptr<istream> input(Gzip_In(filename,std::ios::in|std::ios::binary));
     if(!*input){
@@ -87,7 +87,7 @@ ParticlesDataMutable* readPRD(const char* filename, const bool headersOnly){
     return simple;
 }
 
-bool writePRD(const char* filename,const ParticlesData& p,const bool compressed){
+bool writePRT(const char* filename,const ParticlesData& p,const bool compressed){
     auto_ptr<ostream> output(
         compressed ?
         Gzip_Out(filename,ios::out|ios::binary)

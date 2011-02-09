@@ -56,8 +56,7 @@ readers()
         data["ptc"]=readPTC;
         data["mc"]=readMC;
         data["pdc"]=readPDC;
-        //data["bin"]=readBIN;
-        data["prd"]=readPRD;
+        data["prt"]=readPRD;
     }
     return data;
 }
@@ -74,8 +73,7 @@ writers()
         data["pda"]=writePDA;
         data["ptc"]=writePTC;
         data["pdc"]=writePDC;
-        //data["bin"]=writeBIN;
-        data["prd"]=writePRD;
+        data["prt"]=writePRD;
     }
     return data;
 }
